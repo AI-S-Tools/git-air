@@ -4,17 +4,17 @@
 
 ### Linux:
 ```bash
-curl -L https://github.com/AI-S-Tools/git-air/releases/latest/download/git_air-linux -o /tmp/git-air && chmod +x /tmp/git-air && sudo mv /tmp/git-air /usr/local/bin/git-air && echo '✅ Git Air installed successfully! Run: git-air'
+curl -L https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air-linux -o /tmp/git-air && chmod +x /tmp/git-air && sudo mv /tmp/git-air /usr/local/bin/git-air && echo '✅ Git Air installed successfully! Run: git-air'
 ```
 
 ### macOS:
 ```bash
-curl -L https://github.com/AI-S-Tools/git-air/releases/latest/download/git_air-macos -o /tmp/git-air && chmod +x /tmp/git-air && sudo mv /tmp/git-air /usr/local/bin/git-air && echo '✅ Git Air installed successfully! Run: git-air'
+curl -L https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air-macos -o /tmp/git-air && chmod +x /tmp/git-air && sudo mv /tmp/git-air /usr/local/bin/git-air && echo '✅ Git Air installed successfully! Run: git-air'
 ```
 
 ### Windows (PowerShell as Admin):
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/AI-S-Tools/git-air/releases/latest/download/git_air.exe" -OutFile "$env:TEMP\git-air.exe"; Move-Item -Path "$env:TEMP\git-air.exe" -Destination "C:\Windows\System32\git-air.exe"; Write-Host "✅ Git Air installed successfully! Run: git-air" -ForegroundColor Green
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air.exe" -OutFile "$env:TEMP\git-air.exe"; Move-Item -Path "$env:TEMP\git-air.exe" -Destination "C:\Windows\System32\git-air.exe"; Write-Host "✅ Git Air installed successfully! Run: git-air" -ForegroundColor Green
 ```
 
 ## 🔧 Alternative Install (Build from source)
@@ -36,9 +36,9 @@ sudo mv binaries/git_air-$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin
 
 Download the binary for your platform and place it in your PATH:
 
-- **Linux**: [git_air-linux](https://github.com/AI-S-Tools/git-air/releases/latest/download/git_air-linux)
-- **macOS**: [git_air-macos](https://github.com/AI-S-Tools/git-air/releases/latest/download/git_air-macos)
-- **Windows**: [git_air.exe](https://github.com/AI-S-Tools/git-air/releases/latest/download/git_air.exe)
+- **Linux**: [git_air-linux](https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air-linux)
+- **macOS**: [git_air-macos](https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air-macos)
+- **Windows**: [git_air.exe](https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air.exe)
 
 ## ✅ Verify Installation
 
