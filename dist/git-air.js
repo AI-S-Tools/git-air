@@ -643,8 +643,22 @@ async function attemptAutoFix(repoPath, errorMessage, aiSuggestion) {
         // Common fixable issues
         if (error.includes('fetch first') || error.includes('non-fast-forward')) {
             console.log(`  - 🔧 Attempting git pull to resolve conflicts...`);
-            await execAsync('git pull', { cwd: repoPath });
-            return true;
+            try {
+                // Try merge strategy first
+                await execAsync('git pull --no-rebase', { cwd: repoPath });
+                return true;
+            }
+            catch (mergeError) {
+                console.log(`  - 🔧 Merge failed, trying rebase...`);
+                try {
+                    await execAsync('git pull --rebase', { cwd: repoPath });
+                    return true;
+                }
+                catch (rebaseError) {
+                    console.log(`  - ❌ Both merge and rebase failed`);
+                    return false;
+                }
+            }
         }
         if (error.includes('repository not found') && suggestion.includes('create')) {
             console.log(`  - 📝 Note: Repository needs to be created on remote (cannot auto-fix)`);
