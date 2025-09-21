@@ -118,12 +118,12 @@ async function findProjectRoot(startDir: string): Promise<string | null> {
   }
 }
 
-// Scans for Git repositories recursively and processes them
+// Scans for Git repositories recursively and processes them (simplified approach)
 async function runGitTasks(): Promise<void> {
   const currentDir = process.cwd();
   console.log(`🔍 Scanning for Git repositories starting from: ${currentDir}`);
 
-  const repositories = await findAllGitRepositories(currentDir);
+  const repositories = await findAllGitRepositoriesSimple(currentDir);
 
   if (repositories.length === 0) {
     console.log('❌ No Git repositories found in current directory or subdirectories.');
@@ -131,20 +131,53 @@ async function runGitTasks(): Promise<void> {
   }
 
   console.log(`📁 Found ${repositories.length} Git repositories:`);
-  repositories.forEach(repo => {
-    const repoType = repo.isMonorepo ? 'MONOREPO' : 'REPO';
-    console.log(`  📂 ${path.relative(currentDir, repo.path)} [${repoType}]`);
+  repositories.forEach(repoPath => {
+    console.log(`  📂 ${path.relative(currentDir, repoPath)}`);
   });
 
-  // Process in correct order: submodules/nested repos first, then main repos
-  const processOrder = sortRepositoriesForProcessing(repositories);
-
-  for (const repo of processOrder) {
-    await processRepositoryAdvanced(repo);
+  // Process all repos in discovery order (naturally depth-first)
+  for (const repoPath of repositories) {
+    await processRepositorySimple(repoPath);
   }
 }
 
-// Recursively finds all .git directories starting from root directory
+// Simple recursive finder - just like original git-air
+async function findAllGitRepositoriesSimple(rootDir: string): Promise<string[]> {
+  const repositories: string[] = [];
+
+  async function walkDirectory(dir: string): Promise<void> {
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const fullPath = path.join(dir, entry.name);
+
+          // Skip common directories (like original)
+          if (['node_modules', 'vendor', '.vscode', '.idea'].includes(entry.name)) {
+            continue;
+          }
+
+          // Found a .git directory
+          if (entry.name === '.git') {
+            repositories.push(dir); // Add parent directory as repo
+            continue; // Don't recurse into .git
+          }
+
+          // Recurse into other directories
+          await walkDirectory(fullPath);
+        }
+      }
+    } catch (error) {
+      // Skip directories we can't read (like original)
+    }
+  }
+
+  await walkDirectory(rootDir);
+  return repositories;
+}
+
+// Keep complex version for reference
 async function findAllGitRepositories(rootDir: string): Promise<RepoInfo[]> {
   const repositories: RepoInfo[] = [];
 
@@ -257,7 +290,21 @@ function sortRepositoriesForProcessing(repos: RepoInfo[]): RepoInfo[] {
   });
 }
 
-// Advanced repository processing with monorepo support
+// Simple repository processor - like original git-air
+async function processRepositorySimple(repoPath: string): Promise<void> {
+  const repoName = path.basename(repoPath);
+  console.log(`\n📝 Processing ${repoName}...`);
+
+  // Simple: just commit and push
+  const success = await gitCommitAndPush(repoPath);
+  if (success) {
+    console.log(`  ✅ ${repoName} processed successfully`);
+  } else {
+    console.log(`  ⏭️  ${repoName} - no changes or failed`);
+  }
+}
+
+// Keep advanced version for reference
 async function processRepositoryAdvanced(repo: RepoInfo): Promise<void> {
   const repoName = path.basename(repo.path);
   const repoTypeLabel = repo.isMonorepo ? ' [MONOREPO]' : '';
@@ -278,13 +325,9 @@ async function processRepositoryAdvanced(repo: RepoInfo): Promise<void> {
     return;
   }
 
-  await gitCommit(repo.path);
-
-  if (await gitRepoHasRemote(repo.path)) {
-    console.log('  🚀 Remote found. Pushing changes...');
-    await gitPush(repo.path);
-  } else {
-    console.log('  📍 No remote found. Skipping push.');
+  const commitResult = await gitCommitAndPush(repo.path);
+  if (commitResult) {
+    console.log('  ✅ Changes committed and pushed successfully');
   }
 }
 
@@ -453,7 +496,60 @@ async function generateCommitMessageWithAI(repoPath: string): Promise<string | n
   return null;
 }
 
-// Stages all changes and creates a commit
+// Simple git commit and push using standard CLI commands
+async function gitCommitAndPush(repoPath: string): Promise<boolean> {
+  try {
+    // Check for changes
+    const { stdout: statusOutput } = await execAsync('git status --porcelain', { cwd: repoPath });
+    if (!statusOutput.trim()) {
+      console.log('  - No changes to commit');
+      return false;
+    }
+
+    // Stage all changes
+    await execAsync('git add .', { cwd: repoPath });
+    console.log('  - Changes staged');
+
+    // Generate commit message (simple fallback for now)
+    const timestamp = new Date().toISOString();
+    const commitMessage = `Auto-commit by git-air at ${timestamp}`;
+
+    // Commit
+    try {
+      await execAsync(`git commit -m "${commitMessage}"`, { cwd: repoPath });
+      console.log(`  - Committed: "${commitMessage}"`);
+    } catch (error: any) {
+      if (error.message?.includes('nothing to commit')) {
+        console.log('  - Nothing to commit');
+        return false;
+      }
+      throw error;
+    }
+
+    // Push (simple approach)
+    try {
+      await execAsync('git push', { cwd: repoPath });
+      console.log('  - Pushed to remote');
+      return true;
+    } catch (pushError) {
+      // Try setting upstream if push fails
+      try {
+        const { stdout: branch } = await execAsync('git branch --show-current', { cwd: repoPath });
+        await execAsync(`git push -u origin ${branch.trim()}`, { cwd: repoPath });
+        console.log('  - Pushed with upstream set');
+        return true;
+      } catch (upstreamError) {
+        console.log(`  - No remote or push failed: ${upstreamError}`);
+        return true; // Still successful commit
+      }
+    }
+  } catch (error) {
+    console.log(`  - Error in commit/push: ${error}`);
+    return false;
+  }
+}
+
+// Legacy function kept for AI integration (simplified)
 async function gitCommit(repoPath: string): Promise<void> {
   try {
     // Check if this is a sparse-checkout repository
@@ -558,7 +654,12 @@ async function gitCommit(repoPath: string): Promise<void> {
 async function gitRepoHasRemote(repoPath: string): Promise<boolean> {
   try {
     const { stdout } = await execAsync('git remote', { cwd: repoPath });
-    return stdout.trim().length > 0;
+    const hasRemote = stdout.trim().length > 0;
+    console.log(`  - Remote check for ${path.basename(repoPath)}: ${hasRemote ? 'HAS remote' : 'NO remote'}`);
+    if (hasRemote) {
+      console.log(`  - Remotes: ${stdout.trim()}`);
+    }
+    return hasRemote;
   } catch (e) {
     console.log(`  - Error checking for remote in ${repoPath}: ${e}`);
     return false;
