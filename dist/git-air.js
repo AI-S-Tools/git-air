@@ -456,13 +456,58 @@ async function generateCommitMessageWithAI(repoPath) {
             }
         }
         catch (e) {
-            console.log(`  - ❌ Error executing AI agent: ${e}`);
+            console.log(`  - ❌ AI agent failed: ${e}`);
+            // Try fallback AI CLIs
+            return await tryFallbackAIs(repoPath);
         }
     }
     catch (e) {
         console.log(`  - ❌ Error generating commit message with AI agent: ${e}`);
+        // Try fallback AI CLIs
+        return await tryFallbackAIs(repoPath);
     }
     console.log('  - Falling back to default commit message');
+    return null;
+}
+// Try fallback AI CLIs when primary AI agent fails
+async function tryFallbackAIs(repoPath) {
+    const fallbackAIs = [
+        { name: 'gemini-cli', command: 'gemini commit' },
+        { name: 'claude', command: 'claude commit' },
+        { name: 'codex', command: 'codex commit' }
+    ];
+    // Get git diff for AI context
+    try {
+        const { stdout: diffOutput } = await execAsync('git diff --cached --stat', { cwd: repoPath });
+        if (!diffOutput.trim())
+            return null;
+        const changesSummary = diffOutput.substring(0, 200); // Keep it short
+        for (const ai of fallbackAIs) {
+            try {
+                console.log(`  - Trying fallback AI: ${ai.name}...`);
+                // Check if AI CLI exists
+                await execAsync(`which ${ai.name.split(' ')[0]}`, { timeout: 5000 });
+                // Try to generate commit message
+                const { stdout: commitMessage } = await execAsync(`echo "${changesSummary}" | ${ai.command}`, {
+                    cwd: repoPath,
+                    timeout: 15000,
+                    maxBuffer: 5 * 1024 * 1024
+                });
+                if (commitMessage.trim()) {
+                    const finalMessage = commitMessage.trim().split('\n')[0]; // First line only
+                    console.log(`  - ✅ ${ai.name} generated: "${finalMessage}"`);
+                    return finalMessage;
+                }
+            }
+            catch (e) {
+                console.log(`  - ❌ ${ai.name} failed`);
+                continue;
+            }
+        }
+    }
+    catch (e) {
+        console.log(`  - ❌ Error in fallback AIs: ${e}`);
+    }
     return null;
 }
 // Simple git commit and push using standard CLI commands
@@ -489,9 +534,9 @@ async function gitCommitAndPush(repoPath) {
             // Stage all changes
             await execAsync('git add .', { cwd: repoPath });
             console.log('  - Changes staged');
-            // Generate commit message (simple fallback for now)
-            const timestamp = new Date().toISOString();
-            const commitMessage = `Auto-commit by git-air at ${timestamp}`;
+            // Generate commit message with AI
+            const aiCommitMessage = await generateCommitMessageWithAI(repoPath);
+            const commitMessage = aiCommitMessage || `Auto-commit by git-air at ${new Date().toISOString()}`;
             // Commit
             try {
                 await execAsync(`git commit -m "${commitMessage}"`, { cwd: repoPath });
