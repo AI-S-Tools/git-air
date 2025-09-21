@@ -139,6 +139,7 @@ async function runGitTasks(): Promise<void> {
   let successCount = 0;
   let noChangesCount = 0;
   let failureCount = 0;
+  const failedRepos: { name: string; path: string; issue: string }[] = [];
 
   for (const repoPath of repositories) {
     const repoName = path.basename(repoPath);
@@ -170,16 +171,21 @@ async function runGitTasks(): Promise<void> {
       console.log(`  ⚠️  Could not read git status: ${statusError}`);
     }
 
-    const result = await gitCommitAndPush(repoPath);
-    if (result === true) {
+    const result = await gitCommitAndPushWithDetails(repoPath);
+    if (result.status === true) {
       console.log(`  ✅ ${repoName} processed successfully`);
       successCount++;
-    } else if (result === 'no-changes') {
+    } else if (result.status === 'no-changes') {
       console.log(`  ⏭️  ${repoName} - no changes detected`);
       noChangesCount++;
     } else {
       console.log(`  ❌ ${repoName} - FAILED (check logs above)`);
       failureCount++;
+      failedRepos.push({
+        name: repoName,
+        path: relativePath,
+        issue: result.error || 'Unknown error'
+      });
     }
   }
 
@@ -197,8 +203,20 @@ async function runGitTasks(): Promise<void> {
 
   if (failureCount > 0) {
     console.log(`  ❌ ${failureCount} repositories FAILED - REQUIRES ATTENTION!`);
-    console.log(`  🚨 CRITICAL: Some repositories have unpushed commits or other issues!`);
-    console.log(`  📋 Review failure details above and fix manually`);
+    console.log(`\n  🚨 Failed repositories with issues:`);
+    console.log(`  ────────────────────────────────`);
+
+    failedRepos.forEach((repo, index) => {
+      console.log(`  ${index + 1}. ${repo.name}`);
+      console.log(`     Path: ${repo.path}`);
+      console.log(`     Issue: ${repo.issue}`);
+      console.log(`     Fix: cd ${repo.path} && git status`);
+      console.log();
+    });
+
+    console.log(`  ────────────────────────────────`);
+    console.log(`  💡 Tip: You can send an AI agent to fix these issues`);
+    console.log(`  📋 Copy the list above and paste to your AI assistant`);
   } else {
     console.log(`  🎉 All ${repositories.length} repositories are fully synchronized!`);
   }
@@ -734,6 +752,41 @@ async function attemptAutoFix(repoPath: string, errorMessage: string, aiSuggesti
     console.log(`  - ❌ Auto-fix attempt failed: ${e}`);
     return false;
   }
+}
+
+// Git commit and push with detailed error reporting
+async function gitCommitAndPushWithDetails(repoPath: string): Promise<{ status: boolean | 'no-changes'; error?: string }> {
+  // Store last error globally
+  let lastError = '';
+
+  const originalLog = console.log;
+  console.log = (message: any) => {
+    originalLog(message);
+    // Capture error messages
+    if (typeof message === 'string') {
+      if (message.includes('PUSH FAILED')) {
+        lastError = 'Push failed to remote repository';
+      } else if (message.includes('repository not found')) {
+        lastError = 'Remote repository not found';
+      } else if (message.includes('SSH key verification failed')) {
+        lastError = 'SSH key verification failed';
+      } else if (message.includes('Host key verification failed')) {
+        lastError = 'SSH host key verification failed';
+      } else if (message.includes('unpushed commits')) {
+        lastError = 'Repository has unpushed commits';
+      } else if (message.includes('Error in commit/push')) {
+        lastError = 'Failed to commit changes';
+      }
+    }
+  };
+
+  const result = await gitCommitAndPush(repoPath);
+  console.log = originalLog; // Restore original
+
+  return {
+    status: result,
+    error: result === false ? lastError || 'Unknown error' : undefined
+  };
 }
 
 // Simple git commit and push using standard CLI commands
