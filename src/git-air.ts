@@ -383,23 +383,32 @@ async function generateCommitMessageWithAI(repoPath: string): Promise<string | n
       return null;
     }
 
-    console.log(`  - Found ${stagedFiles.split('\n').filter(line => line.trim()).length} changed files:`);
-    stagedFiles.split('\n').forEach(line => {
-      if (line.trim()) {
-        console.log(`    ${line.trim()}`);
-      }
+    // Limit the number of files shown to AI to prevent overflow
+    const changedFiles = stagedFiles.split('\n').filter(line => line.trim());
+    const fileCount = changedFiles.length;
+
+    console.log(`  - Found ${fileCount} changed files`);
+
+    // Show only first 10 files to avoid overflow
+    const filesToShow = changedFiles.slice(0, 10);
+    filesToShow.forEach(line => {
+      console.log(`    ${line.trim()}`);
     });
 
-    // Get diff for more context
-    console.log('  - Getting git diff for AI analysis...');
-    const { stdout: diffOutput } = await execAsync('git diff --cached', { cwd: repoPath });
+    if (fileCount > 10) {
+      console.log(`    ... and ${fileCount - 10} more files`);
+    }
+
+    // Get a limited diff for context (first 5000 characters)
+    console.log('  - Getting limited git diff for AI analysis...');
+    const { stdout: diffOutput } = await execAsync('git diff --cached --stat', { cwd: repoPath });
 
     if (!diffOutput) {
       console.log('  - No diff output available for AI');
       return null;
     }
 
-    console.log(`  - Diff size: ${diffOutput.length} characters`);
+    console.log(`  - Diff stats: ${diffOutput.length} characters`);
 
     // Find the AI agent path
     const scriptDir = path.dirname(process.argv[1]);
@@ -415,13 +424,13 @@ async function generateCommitMessageWithAI(repoPath: string): Promise<string | n
     try {
       console.log('  - Executing AI agent...');
 
-      // Create a simple summary for the AI
-      const changesSummary = `Files changed: ${stagedFiles.split('\n').filter(f => f.trim()).length} files, Diff size: ${diffOutput.length} chars`;
+      // Create a concise summary for the AI (avoid large data)
+      const changesSummary = `${fileCount} files changed in ${path.basename(repoPath)}. Stats: ${diffOutput.substring(0, 500)}`;
 
       const { stdout: commitMessage } = await execAsync(`npx ts-node ${aiAgentPath} --man "${changesSummary}"`, {
         cwd: projectRoot,
         timeout: 30000,
-        maxBuffer: 1024 * 1024
+        maxBuffer: 10 * 1024 * 1024 // Increase buffer to 10MB
       });
 
       console.log('  - AI agent execution completed');
