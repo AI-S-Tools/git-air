@@ -1,0 +1,63 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Git Runner Daemon",
+			"type": "shell",
+			"command": "dart",
+			"args": [
+				"git_runner.dart"
+			],
+			"options": {
+				"cwd": "/Users/lpm/Repo/mfp_tools/git_runner"
+			},
+			"isBackground": true,
+			"problemMatcher": [],
+			"runOptions": {
+				"runOn": "folderOpen"
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"showReuseMessage": false,
+				"clear": true
+			}
+		},
+		{
+			"label": "Start Git Runner Daemon (Global)",
+			"type": "shell",
+			"command": "git_runner",
+			"args": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"isBackground": true,
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"showReuseMessage": false,
+				"clear": true
+			}
+		},
+		{
+			"label": "Test Git Runner",
+			"type": "shell",
+			"command": "dart",
+			"args": [
+				"git_runner.dart"
+			],
+			"options": {
+				"cwd": "/Users/lpm/Repo/mfp_tools/git_runner"
+			},
+			"isBackground": false,
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "new",
+				"showReuseMessage": false,
+				"clear": true
+			}
+		}
+	]
+}

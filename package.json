@@ -1,0 +1,64 @@
+{
+  "name": "@ai-s-tools/git-air",
+  "version": "1.0.0",
+  "description": "Advanced Git automation tool with recursive repository discovery and AI-powered commit messages for monorepos",
+  "main": "dist/git-air.js",
+  "bin": {
+    "git-air": "dist/git-air.js"
+  },
+  "files": [
+    "dist/",
+    "ai-agent/",
+    "README.md",
+    "CLAUDE.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/git-air.js",
+    "dev": "ts-node src/git-air.ts",
+    "watch": "tsc --watch",
+    "pkg:build": "npm run build && npm run pkg:linux && npm run pkg:macos && npm run pkg:windows",
+    "pkg:linux": "npm run build && pkg dist/git-air.js --targets node22-linux-x64 --output binaries/git_air-linux",
+    "pkg:macos": "npm run build && pkg dist/git-air.js --targets node22-macos-x64 --output binaries/git_air-macos",
+    "pkg:windows": "npm run build && pkg dist/git-air.js --targets node22-win-x64 --output binaries/git_air.exe",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "pkg": "^5.8.1",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "keywords": [
+    "git",
+    "automation",
+    "repository",
+    "continuous-development",
+    "ai",
+    "commit-messages",
+    "cli",
+    "developer-tools"
+  ],
+  "author": "AI-S-Tools",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AI-S-Tools/git-air.git"
+  },
+  "homepage": "https://github.com/AI-S-Tools/git-air",
+  "bugs": {
+    "url": "https://github.com/AI-S-Tools/git-air/issues"
+  },
+  "pkg": {
+    "assets": [
+      "ai-agent/**/*"
+    ],
+    "outputPath": "binaries"
+  }
+}

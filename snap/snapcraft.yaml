@@ -1,0 +1,31 @@
+name: git-runner
+version: '1.0.0'
+summary: AI-powered automated Git operations tool
+description: |
+  Git Runner automates periodic git commits and pushes across multiple repositories
+  with AI-generated commit messages. Features intelligent repository discovery,
+  workspace integration, and supports Gemini, Qwen, and Claude AI models for
+  smart commit message generation.
+
+grade: stable
+confinement: strict
+base: core22
+
+apps:
+  git-runner:
+    command: bin/git_runner-linux
+    plugs:
+      - home
+      - network
+      - ssh-keys
+
+parts:
+  git-runner:
+    plugin: dump
+    source: https://github.com/AI-S-Tools/git_runner/releases/download/v1.0.0/git_runner-linux
+    organize:
+      git_runner-linux: bin/git_runner-linux
+    stage:
+      - bin/git_runner-linux
+    prime:
+      - bin/git_runner-linux
