@@ -148,25 +148,65 @@ async function runGitTasks() {
     });
     // Process all repos in discovery order (naturally depth-first)
     let successCount = 0;
+    let noChangesCount = 0;
     let failureCount = 0;
     for (const repoPath of repositories) {
-        const success = await processRepositorySimpleWithResult(repoPath);
-        if (success) {
+        const repoName = path.basename(repoPath);
+        const relativePath = path.relative(currentDir, repoPath);
+        console.log(`\n📝 Processing ${repoName} (${relativePath})...`);
+        // Add verbose status checking
+        try {
+            const { stdout: gitStatus } = await execAsync('git status --porcelain', { cwd: repoPath });
+            const { stdout: branchStatus } = await execAsync('git status -b --porcelain', { cwd: repoPath });
+            const hasUncommitted = gitStatus.trim().length > 0;
+            const hasUnpushed = branchStatus.includes('ahead');
+            const remoteInfo = await getRemoteInfo(repoPath);
+            console.log(`  📊 Status: ${hasUncommitted ? 'uncommitted changes' : 'clean'}, ${hasUnpushed ? 'unpushed commits' : 'synced'}`);
+            if (remoteInfo) {
+                console.log(`  📡 Remote: ${remoteInfo}`);
+            }
+            else {
+                console.log(`  📡 Remote: none configured`);
+            }
+            if (!hasUncommitted && !hasUnpushed) {
+                console.log(`  ⏭️  ${repoName} - already synchronized`);
+                noChangesCount++;
+                continue;
+            }
+        }
+        catch (statusError) {
+            console.log(`  ⚠️  Could not read git status: ${statusError}`);
+        }
+        const result = await gitCommitAndPush(repoPath);
+        if (result === true) {
+            console.log(`  ✅ ${repoName} processed successfully`);
             successCount++;
         }
+        else if (result === 'no-changes') {
+            console.log(`  ⏭️  ${repoName} - no changes detected`);
+            noChangesCount++;
+        }
         else {
+            console.log(`  ❌ ${repoName} - FAILED (check logs above)`);
             failureCount++;
         }
     }
     // Summary
     console.log(`\n🏁 Processing complete:`);
-    console.log(`  ✅ ${successCount} repositories processed successfully`);
+    console.log(`  📊 Total repositories scanned: ${repositories.length}`);
+    if (successCount > 0) {
+        console.log(`  ✅ ${successCount} repositories processed (commits/pushes made)`);
+    }
+    if (noChangesCount > 0) {
+        console.log(`  ✓ ${noChangesCount} repositories already synchronized`);
+    }
     if (failureCount > 0) {
-        console.log(`  ❌ ${failureCount} repositories FAILED`);
-        console.log(`  ⚠️  WARNING: Some repositories have unpushed commits or other issues!`);
+        console.log(`  ❌ ${failureCount} repositories FAILED - REQUIRES ATTENTION!`);
+        console.log(`  🚨 CRITICAL: Some repositories have unpushed commits or other issues!`);
+        console.log(`  📋 Review failure details above and fix manually`);
     }
     else {
-        console.log(`  🎉 All repositories are synchronized!`);
+        console.log(`  🎉 All ${repositories.length} repositories are fully synchronized!`);
     }
 }
 // Simple recursive finder - just like original git-air
@@ -309,14 +349,19 @@ async function processRepositorySimpleWithResult(repoPath) {
     const repoName = path.basename(repoPath);
     console.log(`\n📝 Processing ${repoName}...`);
     // Simple: just commit and push
-    const success = await gitCommitAndPush(repoPath);
-    if (success) {
+    const result = await gitCommitAndPush(repoPath);
+    if (result === true) {
         console.log(`  ✅ ${repoName} processed successfully`);
+        return true;
+    }
+    else if (result === 'no-changes') {
+        console.log(`  ⏭️  ${repoName} - no changes`);
+        return true; // Not a failure, just nothing to do
     }
     else {
         console.log(`  ❌ ${repoName} - FAILED (check logs above)`);
+        return false;
     }
-    return success;
 }
 // Legacy function for backwards compatibility
 async function processRepositorySimple(repoPath) {
@@ -533,26 +578,47 @@ async function tryFallbackAIs(repoPath) {
     }
     return null;
 }
+// Get remote repository information
+async function getRemoteInfo(repoPath) {
+    try {
+        const { stdout: remotes } = await execAsync('git remote -v', { cwd: repoPath });
+        if (remotes.trim()) {
+            const firstRemote = remotes.trim().split('\n')[0];
+            const match = firstRemote.match(/(\w+)\s+(.+)\s+\(fetch\)/);
+            if (match) {
+                return `${match[1]} → ${match[2]}`;
+            }
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
+}
 // Ask AI for solution to Git problems
 async function askAIForSolution(repoPath, errorMessage) {
     try {
         console.log(`  - 🤖 Asking AI for solution...`);
         // Try different AI CLIs for problem solving
-        const aiClis = ['gemini-cli', 'claude', 'codex'];
+        const aiClis = [
+            { name: 'gemini', command: 'gemini' },
+            { name: 'claude', command: 'claude' },
+            { name: 'codex', command: 'codex' }
+        ];
         for (const aiCli of aiClis) {
             try {
                 // Check if AI CLI exists
-                await execAsync(`which ${aiCli.split(' ')[0]}`, { timeout: 5000 });
+                await execAsync(`which ${aiCli.name}`, { timeout: 5000 });
                 // Create a concise problem description
-                const problemDescription = `Git push failed in repository "${path.basename(repoPath)}" with error: "${errorMessage}". What's the most likely solution?`;
-                const { stdout: aiResponse } = await execAsync(`echo "${problemDescription}" | ${aiCli} --brief`, {
+                const problemDescription = `Git push failed with error: "${errorMessage}". What's the solution? Answer in one sentence.`;
+                const { stdout: aiResponse } = await execAsync(`echo "${problemDescription}" | ${aiCli.command}`, {
                     cwd: repoPath,
-                    timeout: 20000,
+                    timeout: 30000,
                     maxBuffer: 5 * 1024 * 1024
                 });
                 if (aiResponse.trim()) {
                     const solution = aiResponse.trim().split('\n')[0]; // First line only
-                    console.log(`  - 🧠 ${aiCli} analyzed the problem`);
+                    console.log(`  - 🧠 ${aiCli.name} analyzed the problem`);
                     return solution;
                 }
             }
@@ -623,7 +689,7 @@ async function gitCommitAndPush(repoPath) {
         }
         if (!hasUncommittedChanges && !hasUnpushedCommits) {
             console.log('  - No changes to commit or push');
-            return false;
+            return 'no-changes';
         }
         // Only commit if there are uncommitted changes
         if (hasUncommittedChanges) {
@@ -666,24 +732,25 @@ async function gitCommitAndPush(repoPath) {
             catch (upstreamError) {
                 console.log(`  - ❌ PUSH FAILED: ${upstreamError.message || upstreamError}`);
                 console.log(`  - ⚠️  Repository has unpushed commits!`);
-                // Ask AI for solution
-                const aiSolution = await askAIForSolution(repoPath, upstreamError.message || upstreamError);
+                // Try to auto-fix common problems first
+                const errorMsg = upstreamError.message || upstreamError;
+                const fixAttempted = await attemptAutoFix(repoPath, errorMsg, '');
+                if (fixAttempted) {
+                    console.log(`  - 🔧 Auto-fix attempted, checking result...`);
+                    // Try push again after fix
+                    try {
+                        await execAsync('git push', { cwd: repoPath });
+                        console.log(`  - ✅ Auto-fix successful! Push completed.`);
+                        return true;
+                    }
+                    catch (retryError) {
+                        console.log(`  - ❌ Auto-fix failed, manual intervention needed`);
+                    }
+                }
+                // Ask AI for solution if auto-fix didn't work
+                const aiSolution = await askAIForSolution(repoPath, errorMsg);
                 if (aiSolution) {
                     console.log(`  - 🤖 AI suggests: ${aiSolution}`);
-                    // Try to auto-fix simple cases
-                    const fixAttempted = await attemptAutoFix(repoPath, upstreamError.message || upstreamError, aiSolution);
-                    if (fixAttempted) {
-                        console.log(`  - 🔧 Auto-fix attempted, checking result...`);
-                        // Try push again after fix
-                        try {
-                            await execAsync('git push', { cwd: repoPath });
-                            console.log(`  - ✅ Auto-fix successful! Push completed.`);
-                            return true;
-                        }
-                        catch (retryError) {
-                            console.log(`  - ❌ Auto-fix failed, manual intervention needed`);
-                        }
-                    }
                 }
                 else {
                     console.log(`  - 📝 Note: Manual fix required - check remote repository configuration`);
