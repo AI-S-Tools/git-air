@@ -136,8 +136,26 @@ async function runGitTasks(): Promise<void> {
   });
 
   // Process all repos in discovery order (naturally depth-first)
+  let successCount = 0;
+  let failureCount = 0;
+
   for (const repoPath of repositories) {
-    await processRepositorySimple(repoPath);
+    const success = await processRepositorySimpleWithResult(repoPath);
+    if (success) {
+      successCount++;
+    } else {
+      failureCount++;
+    }
+  }
+
+  // Summary
+  console.log(`\n🏁 Processing complete:`);
+  console.log(`  ✅ ${successCount} repositories processed successfully`);
+  if (failureCount > 0) {
+    console.log(`  ❌ ${failureCount} repositories FAILED`);
+    console.log(`  ⚠️  WARNING: Some repositories have unpushed commits or other issues!`);
+  } else {
+    console.log(`  🎉 All repositories are synchronized!`);
   }
 }
 
@@ -291,7 +309,7 @@ function sortRepositoriesForProcessing(repos: RepoInfo[]): RepoInfo[] {
 }
 
 // Simple repository processor - like original git-air
-async function processRepositorySimple(repoPath: string): Promise<void> {
+async function processRepositorySimpleWithResult(repoPath: string): Promise<boolean> {
   const repoName = path.basename(repoPath);
   console.log(`\n📝 Processing ${repoName}...`);
 
@@ -300,8 +318,14 @@ async function processRepositorySimple(repoPath: string): Promise<void> {
   if (success) {
     console.log(`  ✅ ${repoName} processed successfully`);
   } else {
-    console.log(`  ⏭️  ${repoName} - no changes or failed`);
+    console.log(`  ❌ ${repoName} - FAILED (check logs above)`);
   }
+  return success;
+}
+
+// Legacy function for backwards compatibility
+async function processRepositorySimple(repoPath: string): Promise<void> {
+  await processRepositorySimpleWithResult(repoPath);
 }
 
 // Keep advanced version for reference
@@ -605,8 +629,9 @@ async function gitCommitAndPush(repoPath: string): Promise<boolean> {
         console.log('  - Pushed with upstream set');
         return true;
       } catch (upstreamError: any) {
-        console.log(`  - No remote or push failed: ${upstreamError.message || upstreamError}`);
-        return true; // Still successful commit
+        console.log(`  - ❌ PUSH FAILED: ${upstreamError.message || upstreamError}`);
+        console.log(`  - ⚠️  Repository has unpushed commits!`);
+        return false; // Push failure is a real failure
       }
     }
   } catch (error: any) {
