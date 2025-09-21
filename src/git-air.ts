@@ -499,31 +499,47 @@ async function generateCommitMessageWithAI(repoPath: string): Promise<string | n
 // Simple git commit and push using standard CLI commands
 async function gitCommitAndPush(repoPath: string): Promise<boolean> {
   try {
-    // Check for changes
+    // Check for uncommitted changes
     const { stdout: statusOutput } = await execAsync('git status --porcelain', { cwd: repoPath });
-    if (!statusOutput.trim()) {
-      console.log('  - No changes to commit');
+    const hasUncommittedChanges = statusOutput.trim().length > 0;
+
+    // Check for unpushed commits
+    let hasUnpushedCommits = false;
+    try {
+      const { stdout: statusBranch } = await execAsync('git status -b --porcelain', { cwd: repoPath });
+      hasUnpushedCommits = statusBranch.includes('ahead');
+    } catch {
+      // Ignore error, might not have remote
+    }
+
+    if (!hasUncommittedChanges && !hasUnpushedCommits) {
+      console.log('  - No changes to commit or push');
       return false;
     }
 
-    // Stage all changes
-    await execAsync('git add .', { cwd: repoPath });
-    console.log('  - Changes staged');
+    // Only commit if there are uncommitted changes
+    if (hasUncommittedChanges) {
+      // Stage all changes
+      await execAsync('git add .', { cwd: repoPath });
+      console.log('  - Changes staged');
 
-    // Generate commit message (simple fallback for now)
-    const timestamp = new Date().toISOString();
-    const commitMessage = `Auto-commit by git-air at ${timestamp}`;
+      // Generate commit message (simple fallback for now)
+      const timestamp = new Date().toISOString();
+      const commitMessage = `Auto-commit by git-air at ${timestamp}`;
 
-    // Commit
-    try {
-      await execAsync(`git commit -m "${commitMessage}"`, { cwd: repoPath });
-      console.log(`  - Committed: "${commitMessage}"`);
-    } catch (error: any) {
-      if (error.message?.includes('nothing to commit')) {
-        console.log('  - Nothing to commit');
-        return false;
+      // Commit
+      try {
+        await execAsync(`git commit -m "${commitMessage}"`, { cwd: repoPath });
+        console.log(`  - Committed: "${commitMessage}"`);
+      } catch (error: any) {
+        if (error.message?.includes('nothing to commit')) {
+          console.log('  - Nothing to commit');
+          return false;
+        }
+        throw error;
       }
-      throw error;
+    } else if (hasUnpushedCommits) {
+      console.log('  - Found unpushed commits, pushing...');
     }
 
     // Push (simple approach)
@@ -531,20 +547,20 @@ async function gitCommitAndPush(repoPath: string): Promise<boolean> {
       await execAsync('git push', { cwd: repoPath });
       console.log('  - Pushed to remote');
       return true;
-    } catch (pushError) {
+    } catch (pushError: any) {
       // Try setting upstream if push fails
       try {
         const { stdout: branch } = await execAsync('git branch --show-current', { cwd: repoPath });
         await execAsync(`git push -u origin ${branch.trim()}`, { cwd: repoPath });
         console.log('  - Pushed with upstream set');
         return true;
-      } catch (upstreamError) {
-        console.log(`  - No remote or push failed: ${upstreamError}`);
+      } catch (upstreamError: any) {
+        console.log(`  - No remote or push failed: ${upstreamError.message || upstreamError}`);
         return true; // Still successful commit
       }
     }
-  } catch (error) {
-    console.log(`  - Error in commit/push: ${error}`);
+  } catch (error: any) {
+    console.log(`  - Error in commit/push: ${error.message || error}`);
     return false;
   }
 }
