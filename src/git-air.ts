@@ -570,6 +570,90 @@ async function tryFallbackAIs(repoPath: string): Promise<string | null> {
   return null;
 }
 
+// Ask AI for solution to Git problems
+async function askAIForSolution(repoPath: string, errorMessage: string): Promise<string | null> {
+  try {
+    console.log(`  - 🤖 Asking AI for solution...`);
+
+    // Try different AI CLIs for problem solving
+    const aiClis = ['gemini-cli', 'claude', 'codex'];
+
+    for (const aiCli of aiClis) {
+      try {
+        // Check if AI CLI exists
+        await execAsync(`which ${aiCli.split(' ')[0]}`, { timeout: 5000 });
+
+        // Create a concise problem description
+        const problemDescription = `Git push failed in repository "${path.basename(repoPath)}" with error: "${errorMessage}". What's the most likely solution?`;
+
+        const { stdout: aiResponse } = await execAsync(`echo "${problemDescription}" | ${aiCli} --brief`, {
+          cwd: repoPath,
+          timeout: 20000,
+          maxBuffer: 5 * 1024 * 1024
+        });
+
+        if (aiResponse.trim()) {
+          const solution = aiResponse.trim().split('\n')[0]; // First line only
+          console.log(`  - 🧠 ${aiCli} analyzed the problem`);
+          return solution;
+        }
+      } catch (e) {
+        // Try next AI CLI
+        continue;
+      }
+    }
+
+    console.log(`  - ❌ No AI CLIs available for problem analysis`);
+    return null;
+  } catch (e) {
+    console.log(`  - ❌ Error asking AI for solution: ${e}`);
+    return null;
+  }
+}
+
+// Attempt to auto-fix common Git problems
+async function attemptAutoFix(repoPath: string, errorMessage: string, aiSuggestion: string): Promise<boolean> {
+  try {
+    const error = errorMessage.toLowerCase();
+    const suggestion = aiSuggestion.toLowerCase();
+
+    // Common fixable issues
+    if (error.includes('fetch first') || error.includes('non-fast-forward')) {
+      console.log(`  - 🔧 Attempting git pull to resolve conflicts...`);
+      await execAsync('git pull', { cwd: repoPath });
+      return true;
+    }
+
+    if (error.includes('repository not found') && suggestion.includes('create')) {
+      console.log(`  - 📝 Note: Repository needs to be created on remote (cannot auto-fix)`);
+      return false;
+    }
+
+    if (error.includes('host key verification failed')) {
+      console.log(`  - 📝 Note: SSH key verification failed (manual intervention required)`);
+      return false;
+    }
+
+    if (error.includes('permission denied') || error.includes('access rights')) {
+      console.log(`  - 📝 Note: Access rights issue (manual intervention required)`);
+      return false;
+    }
+
+    // If AI suggests a specific git command, we could try it (but be careful)
+    if (suggestion.includes('git pull') && !error.includes('repository not found')) {
+      console.log(`  - 🔧 Following AI suggestion: git pull`);
+      await execAsync('git pull', { cwd: repoPath });
+      return true;
+    }
+
+    console.log(`  - 📝 Note: No auto-fix available for this issue`);
+    return false;
+  } catch (e) {
+    console.log(`  - ❌ Auto-fix attempt failed: ${e}`);
+    return false;
+  }
+}
+
 // Simple git commit and push using standard CLI commands
 async function gitCommitAndPush(repoPath: string): Promise<boolean> {
   try {
@@ -631,6 +715,29 @@ async function gitCommitAndPush(repoPath: string): Promise<boolean> {
       } catch (upstreamError: any) {
         console.log(`  - ❌ PUSH FAILED: ${upstreamError.message || upstreamError}`);
         console.log(`  - ⚠️  Repository has unpushed commits!`);
+
+        // Ask AI for solution
+        const aiSolution = await askAIForSolution(repoPath, upstreamError.message || upstreamError);
+        if (aiSolution) {
+          console.log(`  - 🤖 AI suggests: ${aiSolution}`);
+
+          // Try to auto-fix simple cases
+          const fixAttempted = await attemptAutoFix(repoPath, upstreamError.message || upstreamError, aiSolution);
+          if (fixAttempted) {
+            console.log(`  - 🔧 Auto-fix attempted, checking result...`);
+            // Try push again after fix
+            try {
+              await execAsync('git push', { cwd: repoPath });
+              console.log(`  - ✅ Auto-fix successful! Push completed.`);
+              return true;
+            } catch (retryError) {
+              console.log(`  - ❌ Auto-fix failed, manual intervention needed`);
+            }
+          }
+        } else {
+          console.log(`  - 📝 Note: Manual fix required - check remote repository configuration`);
+        }
+
         return false; // Push failure is a real failure
       }
     }
