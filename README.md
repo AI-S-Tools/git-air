@@ -1,63 +1,49 @@
-# Git Runner
+# 🚀 Git Air - AI-Powered Git Automation
 
-**Automated Git Operations Tool with AI-Powered Commit Messages**
+**Advanced Git automation tool that recursively discovers and synchronizes all Git repositories with AI-powered commit messages and intelligent problem-solving.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16.0.0-green)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-green)](https://nodejs.org/)
 
-Automated periodic git commits and push operations across multiple repositories with intelligent AI-generated commit messages. Designed for continuous development workflows with smart repository discovery.
+Git Air is designed for the **AI:DevOps paradigm** where humans orchestrate AI agents and tools provide AI-ready, actionable output.
 
 ## 🚀 Quick Start
 
-### Package Manager Install (Recommended)
+### One-Line Install (Recommended)
 
+**Linux:**
 ```bash
-# Ubuntu (Snap) - Download .snap from releases
-sudo snap install git-runner.snap --dangerous
-
-# macOS (Homebrew) - Coming soon
-brew install ai-s-tools/tap/git-runner
-
-# Windows (Chocolatey) - Coming soon
-choco install git-runner
+curl -L https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air-linux -o /tmp/git-air && chmod +x /tmp/git-air && sudo mv /tmp/git-air /usr/local/bin/git-air && echo '✅ Git Air installed!'
 ```
 
-### One-Line Install Script
-
+**macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AI-S-Tools/git_runner/main/install.sh | bash
+curl -L https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air-macos -o /tmp/git-air && chmod +x /tmp/git-air && sudo mv /tmp/git-air /usr/local/bin/git-air && echo '✅ Git Air installed!'
 ```
 
-### Download Standalone Binary (Alternative)
-
-Choose your platform and download the standalone executable:
-
-```bash
-# Linux
-wget https://github.com/AI-S-Tools/git_runner/releases/latest/download/git_runner-linux
-chmod +x git_runner-linux
-sudo mv git_runner-linux /usr/local/bin/git_runner
-
-# macOS
-wget https://github.com/AI-S-Tools/git_runner/releases/latest/download/git_runner-macos
-chmod +x git_runner-macos
-sudo mv git_runner-macos /usr/local/bin/git_runner
-
-# Windows
-# Download git_runner.exe from releases and add to PATH
+**Windows (PowerShell as Admin):**
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/AI-S-Tools/git-air/main/binaries/git_air.exe" -OutFile "$env:TEMP\git-air.exe"; Move-Item -Path "$env:TEMP\git-air.exe" -Destination "C:\Windows\System32\git-air.exe"; Write-Host "✅ Git Air installed!" -ForegroundColor Green
 ```
 
-### Alternative: Install via npm
+### Build from Source
 
 ```bash
-npm install -g @ai-s-tools/git-runner
+git clone https://github.com/AI-S-Tools/git-air.git
+cd git-air
+npm install
+npm run pkg:build
+sudo mv binaries/git_air-linux /usr/local/bin/git-air  # Linux
 ```
 
 ### Usage
 
 ```bash
-cd your-project-directory
-git_runner
+# One-time sync
+git-air
+
+# Continuous monitoring (background)
+nohup git-air > git-air.log 2>&1 &
 ```
 
 ## ✨ Key Features
